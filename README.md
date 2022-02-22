@@ -5,3 +5,10 @@
 ![PyPI](https://img.shields.io/pypi/v/imgurfy)
 
 Simple CLI for Imgur API
+
+
+### Changelog
+
+#### v0.0.2
+- fixed auth and cred tool
+- added tooling for folder info, image info and search

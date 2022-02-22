@@ -9,7 +9,7 @@ def readme():
 
 setuptools.setup(
     name='imgurfy',
-    version='0.0.1',
+    version='0.0.2',
     packages=find_packages(),
     url='https://github.com/samapriya/imgurfy',
     install_requires=['logzero >= 1.5.0', 'requests == 2.27.1'],

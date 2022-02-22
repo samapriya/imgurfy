@@ -2,6 +2,7 @@ import argparse
 import getpass
 import json
 import os
+import time
 import webbrowser
 from os.path import expanduser
 
@@ -49,9 +50,6 @@ def iminit_from_parser(args):
     iminit()
 
 
-# iminit()
-
-
 def imgur_auth():
     if os.path.exists(os.path.join(expanduser("~"), "imcred.json")):
         with open(os.path.join(expanduser("~"), "imcred.json"), "r") as f:
@@ -89,6 +87,38 @@ def info_from_parser(args):
     info()
 
 
+def all_images(keyword):
+    api_url = f"{BASE_URL}/3/account/me/images"
+    username, cred_json = imgur_auth()
+    payload = {}
+    files = {}
+    headers = {"Authorization": f"Bearer {cred_json['access_token']}"}
+
+    response = requests.get(
+        api_url, headers=headers, data=payload, files=files)
+    if response.status_code == 200:
+        resp = response.json()
+        for album in resp['data']:
+            album_info = {}
+            album_info["name"] = album["name"]
+            album_info["id"] = album["id"]
+            album_info["link"] = album["link"]
+            album_info["deletehash"] = album["deletehash"]
+            album_info['date_created'] = time.strftime(
+                '%Y-%m-%d %H:%M:%S', time.localtime(album['datetime']))
+
+            if keyword is not None and keyword in album_info['name']:
+                print(json.dumps(album_info, indent=2))
+            elif keyword is None:
+                print(json.dumps(album_info, indent=2))
+    else:
+        print(f"Failed with error code {response.status_code}")
+
+
+def all_images_from_parser(args):
+    all_images(keyword=args.keyword)
+
+
 def imgur_album_create(title, description):
     url = f"{BASE_URL}/3/album"
     folder_lists = os.path.join(expanduser("~"), "imgur_folders.json")
@@ -102,7 +132,8 @@ def imgur_album_create(title, description):
     if response.status_code == 200:
         album_id = response.json()["data"]["id"]
         album_hash = response.json()["data"]["deletehash"]
-        print(f"Created album name {title} : with ID {album_id} and hash {album_hash}")
+        print(
+            f"Created album name {title} : with ID {album_id} and hash {album_hash}")
         if os.path.exists(folder_lists):
             with open(folder_lists, "r") as f:
                 data = json.load(f)
@@ -114,7 +145,8 @@ def imgur_album_create(title, description):
             with open(folder_lists, "w") as outfile:
                 json.dump(folder_info, outfile, indent=2, sort_keys=True)
     else:
-        print(f"Failed to create album with response code {response.status_code}")
+        print(
+            f"Failed to create album with response code {response.status_code}")
 
 
 def mkalbum_from_parser(args):
@@ -131,7 +163,8 @@ def imgur_albumlist():
     files = {}
     headers = {"Authorization": f"Bearer {cred_json['access_token']}"}
 
-    response = requests.get(api_host, headers=headers, data=payload, files=files)
+    response = requests.get(api_host, headers=headers,
+                            data=payload, files=files)
     if response.status_code == 200:
         resp = response.json()
         album_list = []
@@ -141,8 +174,14 @@ def imgur_albumlist():
             album_info["id"] = album["id"]
             album_info["images_count"] = album["images_count"]
             album_info["deletehash"] = album["deletehash"]
+            album_info['date_created'] = time.strftime(
+                '%Y-%m-%d %H:%M:%S', time.localtime(album['datetime']))
             album_list.append(album_info)
         print(json.dumps(album_list, indent=2))
+
+
+def albumlist_from_parser(args):
+    imgur_albumlist(username=args.username)
 
 
 def album_info(aid):
@@ -163,15 +202,13 @@ def album_info(aid):
             album_info["id"] = album["id"]
             album_info["images_count"] = album["images_count"]
             album_info["deletehash"] = album["deletehash"]
+            album_info['date_created'] = time.strftime(
+                '%Y-%m-%d %H:%M:%S', time.localtime(album['datetime']))
             print(json.dumps(album_info, indent=2))
 
 
-def ialbum_from_parser(args):
+def albumls_from_parser(args):
     album_info(aid=args.aid)
-
-
-def albumlist_from_parser(args):
-    imgur_albumlist(username=args.username)
 
 
 def imgur_uploader(**kwargs):
@@ -192,7 +229,8 @@ def imgur_uploader(**kwargs):
             config["description"] = value
     with open(img_path, "rb") as img:
         files = {"image": img}
-        response = requests.post(api_host, files=files, headers=headers, data=config)
+        response = requests.post(
+            api_host, files=files, headers=headers, data=config)
         if response.status_code == 200:
             print(
                 "\n"
@@ -229,29 +267,49 @@ def main(args=None):
     )
     parser_info.set_defaults(func=info_from_parser)
 
-    parser_upload = subparsers.add_parser("upload", help="Upload media to Imgur")
-    required_named = parser_upload.add_argument_group("Required named arguments.")
-    required_named.add_argument("--path", help="Full path to media", required=True)
-    optional_named = parser_upload.add_argument_group("Optional named arguments")
-    optional_named.add_argument("--name", help="image name", default=None)
-    optional_named.add_argument("--title", help="image title", default=None)
-    optional_named.add_argument("--description", help="image description", default=None)
-    optional_named.add_argument("--album", help="album hex id", default=None)
-    parser_upload.set_defaults(func=upload_from_parser)
+    parser_albumls = subparsers.add_parser(
+        "albumls", help="Album Info or info on all saved albums"
+    )
+    optional_named = parser_albumls.add_argument_group(
+        "Optional named arguments")
+    optional_named.add_argument("--aid", help="album id", default=None)
+    parser_albumls.set_defaults(func=albumls_from_parser)
 
-    parser_mkalbum = subparsers.add_parser("mkalbum", help="Create Imgur album")
-    required_named = parser_mkalbum.add_argument_group("Required named arguments.")
+    parser_all_images = subparsers.add_parser(
+        "imgls",
+        help="Search or list all your images",
+    )
+    optional_named = parser_all_images.add_argument_group(
+        "Optional named arguments")
+    optional_named.add_argument(
+        "--keyword", help="keyword or image name", default=None)
+    parser_all_images.set_defaults(func=all_images_from_parser)
+
+    parser_mkalbum = subparsers.add_parser(
+        "mkalbum", help="Create Imgur album")
+    required_named = parser_mkalbum.add_argument_group(
+        "Required named arguments.")
     required_named.add_argument("--title", help="album title", required=True)
-    optional_named = parser_mkalbum.add_argument_group("Optional named arguments")
-    optional_named.add_argument("--description", help="album description", default=None)
+    optional_named = parser_mkalbum.add_argument_group(
+        "Optional named arguments")
+    optional_named.add_argument(
+        "--description", help="album description", default=None)
     parser_mkalbum.set_defaults(func=mkalbum_from_parser)
 
-    parser_ialbum = subparsers.add_parser(
-        "ialbum", help="Album Info or info on all saved albums"
-    )
-    optional_named = parser_ialbum.add_argument_group("Optional named arguments")
-    optional_named.add_argument("--aid", help="album id", default=None)
-    parser_ialbum.set_defaults(func=ialbum_from_parser)
+    parser_upload = subparsers.add_parser(
+        "upload", help="Upload media to Imgur")
+    required_named = parser_upload.add_argument_group(
+        "Required named arguments.")
+    required_named.add_argument(
+        "--path", help="Full path to media", required=True)
+    optional_named = parser_upload.add_argument_group(
+        "Optional named arguments")
+    optional_named.add_argument("--name", help="image name", default=None)
+    optional_named.add_argument("--title", help="image title", default=None)
+    optional_named.add_argument(
+        "--description", help="image description", default=None)
+    optional_named.add_argument("--album", help="album hex id", default=None)
+    parser_upload.set_defaults(func=upload_from_parser)
 
     args = parser.parse_args()
 
